@@ -1,0 +1,83 @@
+# Europa Tech Tracker - RSS Sources Configuration
+# Phase 1 MVP: Primary European tech news sources
+
+sources:
+  tech_eu:
+    name: "Tech.EU"
+    url: "https://tech.eu/feed/"
+    type: "rss" 
+    priority: "high"
+    description: "Leading European startup and tech news"
+    enabled: true
+    
+  sifted_eu:
+    name: "Sifted.EU" 
+    url: "https://sifted.eu/feed/"
+    type: "rss"
+    priority: "high"
+    description: "European business and tech news by Financial Times"
+    enabled: true
+
+# Keyword filtering for European relevance
+keywords:
+  # European tech companies and regions
+  european_companies:
+    - "European startup"
+    - "European tech"
+    - "EU tech"
+    - "European innovation" 
+    - "European cloud"
+    - "European AI"
+    - "European software"
+    
+  # Privacy and GDPR
+  privacy_tech:
+    - "GDPR"
+    - "Data protection"
+    - "Privacy by design"
+    - "European privacy"
+    - "Data sovereignty"
+    
+  # Specific European companies
+  companies:
+    - "OVHcloud"
+    - "Scaleway" 
+    - "SAP"
+    - "Spotify"
+    - "Klarna"
+    - "Revolut"
+    - "Wise"
+    - "Deliveroo"
+    - "Criteo"
+    
+  # EU policy and regulation
+  policy:
+    - "Digital Markets Act"
+    - "Digital Services Act" 
+    - "AI Act"
+    - "European regulation"
+    - "EU policy"
+    - "European commission"
+    
+# Anti-US filter keywords (Phase 4 feature)
+exclude_keywords:
+  - "exclusively US"
+  - "Silicon Valley only"  
+  - "US-based only"
+
+# Output settings
+output:
+  format: "markdown"
+  max_articles_per_run: 50
+  include_summary: true
+
+# Google Docs integration (Phase 4)
+google_docs:
+  doc_id: "1cn5V7XDPsUgh2l7uUTxGi5Ets5C1FYUI6hQPs5wNgBk"
+  enabled: false  # Enable in Phase 4
+  
+# GitHub integration  
+github:
+  username: "N-Edens"
+  repository: "europa-tech-tracker"
+  auto_commit: true
