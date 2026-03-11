@@ -273,3 +273,141 @@ def close_logger():
     if _logger_instance:
         _logger_instance.close()
         _logger_instance = None
+
+
+# Alias for backward compatibility with tests
+Logger = EuropaLogger
+
+
+# Test compatibility extension for Logger
+class TestCompatibleLogger(EuropaLogger):
+    """Logger with test-compatible API"""
+    
+    def __init__(self, log_dir="logs", level=logging.INFO, session_id=None):
+        """Initialize with test-compatible parameters"""
+        if session_id is None:
+            session_id = f"test_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+        super().__init__(name="test_logger", log_dir=log_dir, log_level=level)
+        self.session_id = session_id
+        self.start_time = datetime.now()
+        
+        # Test compatibility attributes
+        self.session_stats = {
+            'start_time': self.start_time,
+            'errors': 0,
+            'warnings': 0,
+            'articles_processed': 0,
+            'sources_processed': 0
+        }
+    
+    def record_stat(self, key, value):
+        """Record session statistics (test compatibility)"""
+        self.session_stats[key] = value
+    
+    def get_session_stats(self):
+        """Get session statistics (test compatibility)"""
+        # Calculate session duration
+        current_stats = self.session_stats.copy()
+        current_stats['session_duration'] = (datetime.now() - self.start_time).total_seconds()
+        return current_stats
+    
+    def session_summary(self):
+        """Generate session summary (test compatibility)"""
+        stats = self.get_session_stats()
+        self.logger.info("📊 Session Summary")
+        for key, value in stats.items():
+            if key != 'start_time':
+                self.logger.info(f"   {key}: {value}")
+    
+    def step(self, message):
+        """Log step message (test compatibility)"""
+        self.logger.info(f"→ {message}")
+    
+    def progress(self, message, current, total):
+        """Log progress message (test compatibility)"""
+        percentage = (current / total * 100) if total > 0 else 0
+        self.logger.info(f"{message} [{current}/{total}] ({percentage:.1f}%)")
+    
+    def success(self, message):
+        """Log success message (test compatibility)"""
+        self.logger.info(f"✅ {message}")
+    
+    def error_with_context(self, message, exception):
+        """Log error with context (test compatibility)"""
+        self.error(message, exception=exception)
+    
+    def source_info(self, source_name, message):
+        """Log source-specific info (test compatibility)"""
+        self.logger.info(f"[{source_name}] {message}")
+    
+    def source_warning(self, source_name, message):
+        """Log source-specific warning (test compatibility)"""
+        self.logger.warning(f"[{source_name}] {message}")
+    
+    def source_error(self, source_name, message):
+        """Log source-specific error (test compatibility)"""
+        self.logger.error(f"[{source_name}] {message}")
+    
+    def metric(self, name, value, unit):
+        """Log metric (test compatibility)"""
+        self.logger.info(f"📊 {name}: {value} {unit}")
+    
+    def duration(self, name, seconds):
+        """Log duration (test compatibility)"""
+        self.logger.info(f"⏱️ {name}: {seconds:.3f}s")
+    
+    def size(self, name, bytes_count):
+        """Log size (test compatibility)"""
+        if bytes_count >= 1024*1024:
+            size_str = f"{bytes_count/(1024*1024):.1f}MB"
+        elif bytes_count >= 1024:
+            size_str = f"{bytes_count/1024:.1f}KB"
+        else:
+            size_str = f"{bytes_count}B"
+        self.logger.info(f"📏 {name}: {size_str}")
+    
+    def generate_step_summary(self, articles):
+        """Generate GitHub Actions step summary (test compatibility)"""
+        try:
+            stats = self.get_session_stats()
+            summary_file = os.getenv('GITHUB_STEP_SUMMARY')
+            
+            if summary_file:
+                with open(summary_file, 'a', encoding='utf-8') as f:
+                    f.write(f"\n## Test Execution Summary\n")
+                    f.write(f"Articles processed: {len(articles)}\n")
+                    f.write(f"Session duration: {stats['session_duration']:.1f}s\n")
+                    
+                    if articles:
+                        f.write(f"\n### Top Articles\n")
+                        for i, article in enumerate(articles[:5], 1):
+                            title = article.get('title', 'No title')
+                            score = article.get('relevance_score', 0)
+                            f.write(f"{i}. {title} ({score}⭐)\n")
+                
+        except Exception as e:
+            self.logger.warning(f"Could not generate step summary: {e}")
+    
+    def cleanup_old_logs(self, max_age_days=30):
+        """Cleanup old log files (test compatibility)"""
+        log_dir = Path(self.log_dir)
+        if not log_dir.exists():
+            return 0
+        
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        removed_count = 0
+        
+        for log_file in log_dir.glob("*.log"):
+            try:
+                if log_file.stat().st_mtime < cutoff_date.timestamp():
+                    log_file.unlink()
+                    removed_count += 1
+            except OSError:
+                continue
+        
+        return removed_count
+
+
+# Override alias to use test-compatible version  
+Logger = TestCompatibleLogger

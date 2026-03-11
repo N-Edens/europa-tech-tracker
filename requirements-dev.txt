@@ -1,0 +1,32 @@
+# Development and Testing Dependencies
+
+# Core dependencies (from requirements.txt)
+feedparser>=6.0.10
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+PyYAML>=6.0
+
+# Testing frameworks
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+
+# HTTP mocking for RSS tests
+responses>=0.23.0
+requests-mock>=1.11.0
+
+# Time/date mocking
+freezegun>=1.2.2
+
+# Test data generation
+faker>=19.0.0
+
+# Code quality
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Additional utilities for testing
+python-dateutil>=2.8.2
+parameterized>=0.9.0

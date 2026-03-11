@@ -18,13 +18,16 @@ class CacheManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Cache file paths
-        self.article_cache_file = self.cache_dir / "article_cache.json"
+        # Cache file paths - test compatibility
+        self.cache_file = self.cache_dir / "article_cache.json"  
+        self.article_cache_file = self.cache_file  # Internal compatibility
         self.metadata_cache_file = self.cache_dir / "metadata.json"
         self.stats_file = self.cache_dir / "daily_stats.json"
         
-        # Load existing caches
-        self.article_cache = self._load_json_file(self.article_cache_file)
+        # Load existing caches - test compatibility
+        self._cache = self._load_json_file(self.cache_file)
+        self.article_cache = self._cache  # Internal compatibility
+        
         self.metadata = self._load_json_file(self.metadata_cache_file, {
             'last_update': None,
             'total_articles': 0,
@@ -368,3 +371,54 @@ class CacheManager:
                 continue
         
         return round(total_size / (1024 * 1024), 2)
+    
+    # Test compatibility methods
+    def add_article(self, article):
+        """Add single article to cache (test compatibility)"""
+        article_hash = self._generate_article_hash(article)
+        
+        if article_hash not in self._cache:
+            self._cache[article_hash] = self._prepare_article_for_cache(article)
+            return article_hash
+        
+        # Article already exists
+        return article_hash
+    
+    def article_exists(self, identifier):
+        """Check if article exists by URL or GUID (test compatibility)"""
+        for article in self._cache.values():
+            if (article.get('link') == identifier or 
+                article.get('url') == identifier or
+                article.get('guid') == identifier):
+                return True
+        return False
+    
+    def get_cached_articles(self, since=None, source=None):
+        """Get cached articles with optional filtering (test compatibility)"""
+        articles = list(self._cache.values())
+        
+        if since:
+            filtered_articles = []
+            for article in articles:
+                try:
+                    cached_time = datetime.fromisoformat(article.get('cached_at', ''))
+                    if cached_time >= since:
+                        filtered_articles.append(article)
+                except (ValueError, TypeError):
+                    continue
+            articles = filtered_articles
+        
+        if source:
+            articles = [a for a in articles if a.get('source') == source]
+        
+        return articles
+    
+    def save(self):
+        """Save cache to disk (test compatibility)"""
+        self._save_caches()
+    
+    def clear(self):
+        """Clear all cache data (test compatibility)"""
+        self._cache.clear()
+        if self.cache_file.exists():
+            self.cache_file.unlink()
