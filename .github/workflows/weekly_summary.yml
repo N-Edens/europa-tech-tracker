@@ -47,242 +47,8 @@ jobs:
     - name: 📊 Generate weekly summary
       run: |
         echo "Generating weekly summary..."
-        
-        # Create weekly summary script on-the-fly
-        cat > weekly_summary.py << 'EOF'
-import json
-import os
-from datetime import datetime, timedelta
-from pathlib import Path
-from collections import defaultdict, Counter
-import yaml
-
-def load_cache_data():
-    """Load cached articles from the past week"""
-    cache_file = Path("data/cache/article_cache.json")
-    if not cache_file.exists():
-        return []
-    
-    with open(cache_file, 'r', encoding='utf-8') as f:
-        cache_data = json.load(f)
-    
-    return list(cache_data.values())
-
-def analyze_weekly_trends(articles, days_back=7):
-    """Analyze trends over the specified period"""
-    cutoff_date = datetime.now() - timedelta(days=days_back)
-    
-    recent_articles = []
-    for article in articles:
-        try:
-            cached_time = datetime.fromisoformat(article.get('cached_at', ''))
-            if cached_time >= cutoff_date:
-                recent_articles.append(article)
-        except (ValueError, TypeError):
-            continue
-    
-    # Analyze trends
-    trends = {
-        'total_articles': len(recent_articles),
-        'categories': defaultdict(int),
-        'sources': defaultdict(int),
-        'keywords': Counter(),
-        'daily_counts': defaultdict(int),
-        'avg_relevance': 0
-    }
-    
-    total_relevance = 0
-    
-    for article in recent_articles:
-        # Count categories
-        category = article.get('primary_category', 'uncategorized')
-        trends['categories'][category] += 1
-        
-        # Count sources
-        source = article.get('source', 'unknown')
-        trends['sources'][source] += 1
-        
-        # Count keywords
-        matched_keywords = article.get('matched_keywords', {})
-        for category_keywords in matched_keywords.values():
-            for kw_info in category_keywords:
-                keyword = kw_info.get('keyword', '')
-                occurrences = kw_info.get('occurrences', 1)
-                trends['keywords'][keyword] += occurrences
-        
-        # Count by day
-        try:
-            cached_date = datetime.fromisoformat(article.get('cached_at', ''))
-            date_str = cached_date.strftime('%Y-%m-%d')
-            trends['daily_counts'][date_str] += 1
-        except (ValueError, TypeError):
-            pass
-            
-        # Relevance
-        relevance = article.get('relevance_score', 0)
-        total_relevance += relevance
-    
-    # Calculate average relevance
-    if trends['total_articles'] > 0:
-        trends['avg_relevance'] = total_relevance / trends['total_articles']
-    
-    return trends
-
-def generate_summary_report(trends, days_back=7):
-    """Generate markdown summary report"""
-    today = datetime.now()
-    week_start = today - timedelta(days=days_back)
-    
-    report = f"""# 🇪🇺 Europa Tech Weekly Summary
-
-**Period:** {week_start.strftime('%B %d')} - {today.strftime('%B %d, %Y')}  
-**Generated:** {today.strftime('%Y-%m-%d %H:%M UTC')}
-
----
-
-## 📊 Week at a Glance
-
-- **Total articles processed:** {trends['total_articles']}
-- **Average relevance score:** {trends['avg_relevance']:.1f}⭐
-- **Most active category:** {max(trends['categories'].items(), key=lambda x: x[1])[0] if trends['categories'] else 'N/A'}
-- **Most productive source:** {max(trends['sources'].items(), key=lambda x: x[1])[0] if trends['sources'] else 'N/A'}
-
----
-
-## 🗂️ Category Breakdown
-
-"""
-    
-    for category, count in sorted(trends['categories'].items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / trends['total_articles']) * 100 if trends['total_articles'] > 0 else 0
-        report += f"- **{category.replace('_', ' ').title()}:** {count} articles ({percentage:.1f}%)\n"
-    
-    report += f"""
-
----
-
-## 📈 Top Sources
-
-"""
-    
-    for source, count in sorted(trends['sources'].items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / trends['total_articles']) * 100 if trends['total_articles'] > 0 else 0
-        source_title = source.replace('_', ' ').title()
-        report += f"- **{source_title}:** {count} articles ({percentage:.1f}%)\n"
-    
-    report += f"""
-
----
-
-## 🔥 Trending Keywords
-
-"""
-    
-    for keyword, count in trends['keywords'].most_common(15):
-        report += f"- **{keyword}:** {count} mentions\n"
-    
-    report += f"""
-
----
-
-## 📅 Daily Activity
-
-"""
-    
-    for date_str in sorted(trends['daily_counts'].keys(), reverse=True):
-        count = trends['daily_counts'][date_str]
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        day_name = date_obj.strftime('%A')
-        report += f"- **{date_str} ({day_name}):** {count} articles\n"
-    
-    report += f"""
-
----
-
-## 🎯 Insights & Recommendations
-
-"""
-    
-    # Generate insights
-    if trends['total_articles'] > 0:
-        most_active_day = max(trends['daily_counts'].items(), key=lambda x: x[1])[0] if trends['daily_counts'] else None
-        top_category = max(trends['categories'].items(), key=lambda x: x[1])[0] if trends['categories'] else None
-        
-        if most_active_day:
-            day_name = datetime.strptime(most_active_day, '%Y-%m-%d').strftime('%A')
-            report += f"- **Most active day:** {day_name} ({most_active_day})\n"
-        
-        if top_category:
-            report += f"- **Dominant topic:** {top_category.replace('_', ' ').title()}\n"
-            
-        if trends['avg_relevance'] >= 15:
-            report += f"- **High quality week:** Articles show strong European tech focus\n"
-        elif trends['avg_relevance'] < 10:
-            report += f"- **Consider filter tuning:** Lower than usual relevance scores\n"
-            
-        # Source recommendations
-        working_sources = len([s for s in trends['sources'].keys() if s != 'unknown'])
-        total_sources = len(trends['sources'])
-        if total_sources > 0:
-            report += f"- **Source diversity:** {working_sources} active sources contributing content\n"
-    else:
-        report += "- **No articles processed this week** - Check source configurations\n"
-    
-    report += f"""
-
----
-
-## 🔗 Quick Links
-
-- [Latest Reports](https://github.com/N-Edens/europa-tech-tracker/tree/main/output/daily_reports)
-- [Configuration](https://github.com/N-Edens/europa-tech-tracker/blob/main/config/sources.yaml)
-- [Project Documentation](https://github.com/N-Edens/europa-tech-tracker#readme)
-
----
-
-*Generated by Europa Tech Tracker - Weekly Summary*
-"""
-    
-    return report
-
-def main():
-    days_back = int(os.getenv('DAYS_BACK', '7'))
-    
-    print(f"Analyzing trends for the past {days_back} days...")
-    
-    # Load data
-    articles = load_cache_data()
-    print(f"Loaded {len(articles)} cached articles")
-    
-    # Analyze trends
-    trends = analyze_weekly_trends(articles, days_back)
-    print(f"Found {trends['total_articles']} articles in analysis period")
-    
-    # Generate report
-    report = generate_summary_report(trends, days_back)
-    
-    # Save report
-    timestamp = datetime.now().strftime("%Y%m%d")
-    report_path = f"output/weekly_summaries/weekly_summary_{timestamp}.md"
-    
-    # Ensure directory exists
-    Path("output/weekly_summaries").mkdir(parents=True, exist_ok=True)
-    
-    with open(report_path, 'w', encoding='utf-8') as f:
-        f.write(report)
-    
-    print(f"Weekly summary saved to: {report_path}")
-    
-    return report_path
-
-if __name__ == "__main__":
-    main()
-EOF
-
-        # Run the weekly summary script
-        python weekly_summary.py
-        
-        # Store results for later steps
+        export DAYS_BACK=${{ github.event.inputs.days_back || '7' }}
+        python scripts/weekly_summary.py
         echo "SUMMARY_GENERATED=true" >> $GITHUB_ENV
         
     - name: 💾 Commit weekly summary
@@ -296,15 +62,17 @@ EOF
         if git diff --staged --quiet; then
           echo "No weekly summary to commit"
         else
-          git commit -m "📊 Weekly Europa Tech Summary - $(date '+%Y-%m-%d')
-
-✨ Weekly analysis completed:
-• Period: $(date -d '7 days ago' '+%Y-%m-%d') to $(date '+%Y-%m-%d')
-• Trend analysis and category breakdown
-• Source performance review
-• Keyword trending analysis
-
-🤖 Generated automatically by Weekly Summary workflow"
+          {
+            echo "📊 Weekly Europa Tech Summary - $(date '+%Y-%m-%d')"
+            echo ""
+            echo "✨ Weekly analysis completed:"
+            echo "• Trend analysis and category breakdown"
+            echo "• Source performance review"
+            echo "• Keyword trending analysis"
+            echo ""
+            echo "🤖 Generated automatically by Weekly Summary workflow"
+          } > /tmp/commit_msg.txt
+          git commit -F /tmp/commit_msg.txt
           
           git push origin main
           echo "Weekly summary committed successfully"
@@ -338,19 +106,22 @@ EOF
               const avgRelevance = lines.find(l => l.includes('Average relevance'))?.split('**')[2] || '0';
               
               // Create issue with summary
+              const body = [
+                '## \ud83c\uddea\ud83c\uddfa Europa Tech Weekly Summary',
+                '',
+                '**Quick Stats:**',
+                '- Total articles: ' + totalArticles,
+                '- Average relevance: ' + avgRelevance,
+                '',
+                '[Full Report](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/' + summariesDir + '/' + files[0] + ')',
+                '',
+                'This issue is automatically created every Sunday with weekly statistics.'
+              ].join('\n');
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `📊 Weekly Summary - ${new Date().toISOString().split('T')[0]}`,
-                body: `## 🇪🇺 Europa Tech Weekly Summary
-                
-**Quick Stats:**
-- Total articles: ${totalArticles}
-- Average relevance: ${avgRelevance}
-
-[📄 Full Report](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/${summariesDir}/${files[0]})
-
-This issue is automatically created every Sunday with weekly statistics.`,
+                title: '\ud83d\udcca Weekly Summary - ' + new Date().toISOString().split('T')[0],
+                body: body,
                 labels: ['weekly-summary', 'automation']
               });
             }

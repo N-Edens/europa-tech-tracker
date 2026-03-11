@@ -17,6 +17,7 @@ from rss_scraper import RSScraper
 from content_filter import ContentFilter
 from markdown_output import MarkdownOutput
 from utils import CacheManager, ArticleDeduplicator, ConfigurationLoader, get_logger, close_logger
+from utils.google_docs import get_google_docs_integration
 
 # Initialize logger
 logger = get_logger("europa_tech_main")
@@ -254,6 +255,46 @@ def display_session_stats(components, source_stats):
         logger.error(f"Error generating session stats: {e}", exception=e)
 
 
+def upload_to_google_docs(articles, config_loader, config):
+    """Upload daily report to Google Docs (Phase 4)"""
+    try:
+        # Check if Google Docs integration is enabled
+        google_docs_config = config.get('google_docs', {})
+        if not google_docs_config.get('enabled', False):
+            logger.debug("Google Docs integration disabled in configuration")
+            return False
+        
+        document_id = google_docs_config.get('document_id', '1cn5V7XDPsUgh2l7uUTxGi5Ets5C1FYUI6hQPs5wNgBk')
+        
+        logger.info("🔗 Phase 4: Uploading to Google Docs...")
+        
+        # Initialize Google Docs integration
+        docs_integration = get_google_docs_integration(document_id, logger)
+        
+        if not docs_integration:
+            logger.warning("❌ Google Docs integration unavailable")
+            return False
+        
+        # Get document info
+        doc_info = docs_integration.get_document_info()
+        logger.debug(f"Connected to document: '{doc_info['title']}'")
+        
+        # Upload to Google Docs (google_docs.py builds formatted text from articles)
+        success = docs_integration.append_daily_report("", articles)
+        
+        if success:
+            logger.info("✅ Daily report uploaded to Google Docs")
+            logger.info(f"📄 Document: {doc_info['title']} ({len(articles)} articles)")
+            return True
+        else:
+            logger.warning("❌ Failed to upload to Google Docs")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Google Docs upload failed: {e}", exception=e)
+        return False
+
+
 def perform_maintenance(components):
     """Perform routine maintenance tasks"""
     try:
@@ -310,6 +351,10 @@ def main():
             if output_path:
                 logger.info(f"✅ Europa Tech Tracker completed successfully!")
                 logger.info(f"📄 Report saved: {output_path}")
+                
+                # Phase 4: Upload to Google Docs (if enabled)
+                upload_to_google_docs(filtered_articles, config_loader, config)
+                
             else:
                 logger.warning("⚠️  Europa Tech Tracker completed with no output")
         

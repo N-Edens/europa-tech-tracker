@@ -140,32 +140,25 @@ jobs:
           echo "CHANGES_COMMITTED=false" >> $GITHUB_ENV
         else
           # Create detailed commit message
-          COMMIT_MSG="🤖 Daily Europa Tech Update - $(date '+%Y-%m-%d %H:%M')"
-          
-          if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
-            COMMIT_MSG="$COMMIT_MSG
-
-✅ Successful run:
-• Total articles processed: ${TOTAL_ARTICLES:-0}
-• European articles found: ${FILTERED_ARTICLES:-0}
-• Average relevance: ${AVG_RELEVANCE:-0}⭐
-• Report generated: ${REPORT_GENERATED:-false}"
-          else
-            COMMIT_MSG="$COMMIT_MSG
-
-❌ Run completed with errors:
-• Check logs for details
-• Cache and partial results committed"
-          fi
-          
-          # Add automation metadata
-          COMMIT_MSG="$COMMIT_MSG
-
-🤖 Automated by GitHub Actions
-Runtime: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          
-          # Commit changes
-          git commit -m "$COMMIT_MSG"
+          {
+            echo "🤖 Daily Europa Tech Update - $(date '+%Y-%m-%d %H:%M')"
+            echo ""
+            if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
+              echo "✅ Successful run:"
+              echo "• Total articles processed: ${TOTAL_ARTICLES:-0}"
+              echo "• European articles found: ${FILTERED_ARTICLES:-0}"
+              echo "• Average relevance: ${AVG_RELEVANCE:-0}⭐"
+              echo "• Report generated: ${REPORT_GENERATED:-false}"
+            else
+              echo "❌ Run completed with errors:"
+              echo "• Check logs for details"
+              echo "• Cache and partial results committed"
+            fi
+            echo ""
+            echo "🤖 Automated by GitHub Actions"
+            echo "Runtime: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > /tmp/commit_msg.txt
+          git commit -F /tmp/commit_msg.txt
           echo "CHANGES_COMMITTED=true" >> $GITHUB_ENV
         fi
         

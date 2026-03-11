@@ -96,76 +96,22 @@ jobs:
     - name: 🔍 Validate configuration files
       run: |
         echo "Validating YAML configurations..."
-        python -c "
-import yaml
-from pathlib import Path
-
-config_files = [
-    'config/sources.yaml',
-    '.github/workflows/daily_tracker.yml',
-    '.github/workflows/weekly_summary.yml',
-    '.github/workflows/manual_run.yml'
-]
-
-for config_file in config_files:
-    if Path(config_file).exists():
-        try:
-            with open(config_file, 'r') as f:
-                yaml.safe_load(f)
-            print(f'✅ {config_file} is valid YAML')
-        except Exception as e:
-            print(f'❌ {config_file} has YAML errors: {e}')
-            exit(1)
-    else:
-        print(f'⚠️  {config_file} not found')
-"
+        python -c 'import yaml; from pathlib import Path; config_files = ["config/sources.yaml", ".github/workflows/daily_tracker.yml", ".github/workflows/weekly_summary.yml", ".github/workflows/manual_run.yml"]; [print(f"✅ {config_file} is valid YAML") if Path(config_file).exists() and yaml.safe_load(open(config_file, "r")) is not None else print(f"⚠️  {config_file} not found") for config_file in config_files]'
         
     - name: 🚀 Test Phase 1 (MVP) compatibility
       run: |
         echo "Testing Phase 1 MVP functionality..."
-        python -c "
-import sys
-sys.path.append('src')
-
-try:
-    from utils.cache import CacheManager
-    from utils.config_loader import ConfigLoader
-    print('✅ Phase 1 imports successful')
-except ImportError as e:
-    print(f'❌ Phase 1 import error: {e}')
-    exit(1)
-"
+        python -c 'import sys; sys.path.append("src"); from utils.cache import CacheManager; from utils.config_loader import ConfigLoader; print("✅ Phase 1 imports successful")'
         
     - name: 🔧 Test Phase 2 (Enhanced) compatibility  
       run: |
         echo "Testing Phase 2 enhanced functionality..."
-        python -c "
-import sys
-sys.path.append('src')
-
-try:
-    from utils.deduplicator import ArticleDeduplicator
-    from utils.cache import CacheManager
-    print('✅ Phase 2 imports successful')
-except ImportError as e:
-    print(f'❌ Phase 2 import error: {e}')
-    exit(1)
-"
+        python -c 'import sys; sys.path.append("src"); from utils.deduplicator import ArticleDeduplicator; from utils.cache import CacheManager; print("✅ Phase 2 imports successful")'
         
     - name: ⚙️ Test Phase 3 (Automation) compatibility
       run: |
         echo "Testing Phase 3 automation functionality..."
-        python -c "
-import sys
-sys.path.append('src')
-
-try:
-    from utils.logger import Logger
-    print('✅ Phase 3 imports successful')
-except ImportError as e:
-    print(f'❌ Phase 3 import error: {e}')
-    exit(1)
-"
+        python -c 'import sys; sys.path.append("src"); from utils.logger import Logger; print("✅ Phase 3 imports successful")'
         
     - name: 📋 Generate test summary
       if: always()
@@ -204,32 +150,7 @@ except ImportError as e:
     - name: 🔍 Validate workflow syntax
       run: |
         echo "Validating GitHub Actions workflow syntax..."
-        
-        # Check all workflow files
-        for workflow in .github/workflows/*.yml; do
-          echo "Validating $workflow..."
-          
-          # Basic YAML validation
-          python -c "
-import yaml
-with open('$workflow', 'r') as f:
-    try:
-        workflow_data = yaml.safe_load(f)
-        print(f'✅ $workflow syntax valid')
-        
-        # Check required fields
-        required_fields = ['name', 'on', 'jobs']
-        for field in required_fields:
-            if field not in workflow_data:
-                raise ValueError(f'Missing required field: {field}')
-                
-        print(f'✅ $workflow structure valid')
-        
-    except Exception as e:
-        print(f'❌ $workflow validation failed: {e}')
-        exit(1)
-"
-        done
+        python scripts/validate_workflows.py
         
     - name: 📊 Summary
       run: |

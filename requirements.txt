@@ -1,12 +1,21 @@
-# Europa Tech Tracker - Phase 1 MVP Requirements
+# Europa Tech Tracker - All Phases Requirements
 
-# RSS/XML Parsing
+# RSS/XML Parsing (Phase 1) 
 feedparser>=6.0.0
 requests>=2.31.0
 
-# Content Processing  
+# Content Processing (Phase 1-2)
 beautifulsoup4>=4.9.0
 python-dateutil>=2.8.0
+
+# Enhanced Processing (Phase 2)
+PyYAML>=6.0
+
+# Google Docs Integration (Phase 4)
+google-api-python-client>=2.108.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.1.0
+google-auth>=2.23.4
 
 # Configuration
 PyYAML>=6.0

@@ -185,8 +185,12 @@ output:
 
 # Google Docs integration (Phase 4)
 google_docs:
-  doc_id: "1cn5V7XDPsUgh2l7uUTxGi5Ets5C1FYUI6hQPs5wNgBk"
-  enabled: false  # Enable in Phase 4
+  enabled: true   # Set to true to enable Google Docs integration
+  document_id: "1cn5V7XDPsUgh2l7uUTxGi5Ets5C1FYUI6hQPs5wNgBk"  # Your Google Docs document ID
+  credentials_path: "config/google_credentials.json"  # Path to OAuth credentials file
+  upload_daily_reports: true  # Upload daily reports automatically
+  upload_weekly_summaries: false  # Upload weekly summaries (future feature)
+  max_articles_per_upload: 15  # Maximum articles to include in each upload
   
 # GitHub integration  
 github:

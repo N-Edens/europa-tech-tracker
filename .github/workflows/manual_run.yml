@@ -83,7 +83,7 @@ jobs:
         echo "- **Max articles:** ${{ github.event.inputs.max_articles }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Include disabled:** ${{ github.event.inputs.include_disabled }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Debug mode:** ${{ github.event.inputs.debug_mode }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Skip cache:** ${{ github.event.inputs.skip_cache }}" >> $GITHUB_ENV
+        echo "- **Skip cache:** ${{ github.event.inputs.skip_cache }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Test mode:** ${{ github.event.inputs.test_mode }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Cleanup cache:** ${{ github.event.inputs.cleanup_cache }}" >> $GITHUB_STEP_SUMMARY
         
@@ -96,12 +96,7 @@ jobs:
           echo "Cache size before cleanup: $BEFORE_SIZE"
           
           # Use Python to clean cache
-          python -c "
-from src.utils import CacheManager
-cache = CacheManager()
-removed = cache.cleanup_old_articles(max_age_days=7)
-print(f'Removed {removed} old articles from cache')
-"
+          python -c "import sys; sys.path.insert(0,'.'); from src.utils import CacheManager; cache = CacheManager(); removed = cache.cleanup_old_articles(max_age_days=7); print('Removed', removed, 'old articles from cache')"
           
           if [ -f data/cache/article_cache.json ]; then
             AFTER_SIZE=$(du -h data/cache/article_cache.json | cut -f1)
@@ -117,15 +112,7 @@ print(f'Removed {removed} old articles from cache')
         
         # Check existing cache
         if [ -f data/cache/article_cache.json ]; then
-          CACHE_STATS=$(python -c "
-from src.utils import CacheManager
-import json
-cache = CacheManager()
-stats = cache.get_cache_stats()
-print(f'Cached articles: {stats[\"total_articles\"]}')
-print(f'Cache size: {stats[\"cache_size_mb\"]} MB')
-print(f'Sources: {len(stats[\"source_breakdown\"])}')
-")
+          CACHE_STATS=$(python -c "import sys; sys.path.insert(0,'.'); from src.utils import CacheManager; cache = CacheManager(); stats = cache.get_cache_stats(); print('Cached articles:', stats.get('total_articles', 0)); print('Cache size:', stats.get('cache_size_mb', 0), 'MB'); print('Sources:', len(stats.get('source_breakdown', {})))")
           echo "$CACHE_STATS" | while read line; do
             echo "- $line" >> $GITHUB_STEP_SUMMARY
           done
@@ -134,14 +121,7 @@ print(f'Sources: {len(stats[\"source_breakdown\"])}')
         fi
         
         # Check configuration
-        SOURCES_COUNT=$(python -c "
-import yaml
-with open('config/sources.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-enabled = sum(1 for s in config.get('sources', {}).values() if s.get('enabled', True))
-total = len(config.get('sources', {}))
-print(f'Enabled sources: {enabled}/{total}')
-")
+        SOURCES_COUNT=$(python -c "import yaml; config = yaml.safe_load(open('config/sources.yaml')); enabled = sum(1 for s in config.get('sources', {}).values() if s.get('enabled', True)); total = len(config.get('sources', {})); print('Enabled sources: ' + str(enabled) + '/' + str(total))")
         echo "- $SOURCES_COUNT" >> $GITHUB_STEP_SUMMARY
         
     - name: 🇪🇺 Run Europa Tech Tracker
@@ -223,30 +203,28 @@ print(f'Enabled sources: {enabled}/{total}')
           echo "No new data was generated during this run." >> $GITHUB_STEP_SUMMARY
         else
           COMMIT_MSG="🔧 Manual Europa Tech Run - $(date '+%Y-%m-%d %H:%M')"
-          
-          if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
-            COMMIT_MSG="$COMMIT_MSG
-
-✅ Manual run successful:
-• Articles processed: ${TOTAL_ARTICLES:-0}
-• European articles: ${FILTERED_ARTICLES:-0}
-• Triggered by: ${{ github.actor }}
-• Configuration: ${{ github.event.inputs.sources }}
-
-🔧 Manual trigger parameters:
-• Max articles: ${{ github.event.inputs.max_articles }}
-• Debug mode: ${{ github.event.inputs.debug_mode }}
-• Skip cache: ${{ github.event.inputs.skip_cache }}"
-          else
-            COMMIT_MSG="$COMMIT_MSG
-
-❌ Manual run with errors:
-• Partial results committed
-• Check logs for troubleshooting
-• Triggered by: ${{ github.actor }}"
-          fi
-          
-          git commit -m "$COMMIT_MSG"
+          {
+            echo "$COMMIT_MSG"
+            echo ""
+            if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
+              echo "✅ Manual run successful:"
+              echo "• Articles processed: ${TOTAL_ARTICLES:-0}"
+              echo "• European articles: ${FILTERED_ARTICLES:-0}"
+              echo "• Triggered by: ${{ github.actor }}"
+              echo "• Configuration: ${{ github.event.inputs.sources }}"
+              echo ""
+              echo "🔧 Manual trigger parameters:"
+              echo "• Max articles: ${{ github.event.inputs.max_articles }}"
+              echo "• Debug mode: ${{ github.event.inputs.debug_mode }}"
+              echo "• Skip cache: ${{ github.event.inputs.skip_cache }}"
+            else
+              echo "❌ Manual run with errors:"
+              echo "• Partial results committed"
+              echo "• Check logs for troubleshooting"
+              echo "• Triggered by: ${{ github.actor }}"
+            fi
+          } > /tmp/commit_msg.txt
+          git commit -F /tmp/commit_msg.txt
           git push origin main
           
           echo "## ✅ Changes Committed" >> $GITHUB_STEP_SUMMARY
