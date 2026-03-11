@@ -1,0 +1,252 @@
+name: 🇪🇺 Europa Tech Daily Tracker
+
+# Automated daily collection of European tech news
+# Runs every day at 07:00 Copenhagen time (06:00 UTC)
+
+on:
+  schedule:
+    # 06:00 UTC = 07:00 Copenhagen (winter time)
+    # 05:00 UTC = 07:00 Copenhagen (summer time with DST)
+    - cron: '0 6 * * *'  # Winter time
+    - cron: '0 5 * * *'  # Summer time (DST)
+    
+  workflow_dispatch:
+    # Manual trigger with optional parameters
+    inputs:
+      max_articles:
+        description: 'Maximum articles to process (default: 50)'
+        required: false
+        default: '50'
+        type: string
+      skip_cache:
+        description: 'Skip cache and fetch fresh articles'
+        required: false
+        default: false
+        type: boolean
+      debug_mode:
+        description: 'Enable debug logging'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  europa_tech_collection:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # Required to commit back to repository
+      
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for proper git operations
+        
+    - name: 🐍 Setup Python environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'  # Use Python 3.11 for better performance
+        cache: 'pip'  # Cache pip dependencies for faster runs
+        
+    - name: 📦 Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install --upgrade pip
+        
+    - name: 🔧 Setup environment variables
+      run: |
+        echo "MAX_ARTICLES_PER_DAY=${{ github.event.inputs.max_articles || '50' }}" >> $GITHUB_ENV
+        echo "SKIP_CACHE=${{ github.event.inputs.skip_cache || 'false' }}" >> $GITHUB_ENV
+        echo "DEBUG_MODE=${{ github.event.inputs.debug_mode || 'false' }}" >> $GITHUB_ENV
+        echo "GITHUB_ACTION=true" >> $GITHUB_ENV
+        echo "TZ=Europe/Copenhagen" >> $GITHUB_ENV
+        
+    - name: 📊 Pre-run cache status
+      run: |
+        echo "## 📊 Cache Status Before Run" >> $GITHUB_STEP_SUMMARY
+        if [ -f data/cache/article_cache.json ]; then
+          CACHE_SIZE=$(du -h data/cache/article_cache.json | cut -f1)
+          ARTICLE_COUNT=$(python -c "import json; print(len(json.load(open('data/cache/article_cache.json', 'r'))))" 2>/dev/null || echo "0")
+          echo "- Cache size: $CACHE_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- Cached articles: $ARTICLE_COUNT" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- No existing cache found" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: 🇪🇺 Run Europa Tech Tracker
+      id: tracker
+      run: |
+        echo "Starting Europa Tech Tracker..."
+        
+        # Create logs directory
+        mkdir -p logs
+        
+        # Run the tracker with logging
+        python src/main.py > logs/tracker_$(date +%Y%m%d_%H%M).log 2>&1
+        
+        # Store exit code
+        echo "TRACKER_EXIT_CODE=$?" >> $GITHUB_ENV
+        
+        # Parse results for GitHub summary
+        if [ -f "logs/tracker_$(date +%Y%m%d_%H%M).log" ]; then
+          LAST_LOG="logs/tracker_$(date +%Y%m%d_%H%M).log"
+          
+          # Extract key metrics
+          TOTAL_ARTICLES=$(grep -o "Processing [0-9]\+ total articles" "$LAST_LOG" | grep -o "[0-9]\+" || echo "0")
+          FILTERED_ARTICLES=$(grep -o "[0-9]\+ articles match European criteria" "$LAST_LOG" | grep -o "^[0-9]\+" || echo "0")
+          AVG_RELEVANCE=$(grep -o "Average relevance: [0-9.]\+" "$LAST_LOG" | grep -o "[0-9.]\+" || echo "0")
+          
+          # Store in environment for later use
+          echo "TOTAL_ARTICLES=$TOTAL_ARTICLES" >> $GITHUB_ENV
+          echo "FILTERED_ARTICLES=$FILTERED_ARTICLES" >> $GITHUB_ENV
+          echo "AVG_RELEVANCE=$AVG_RELEVANCE" >> $GITHUB_ENV
+          
+          echo "Tracker completed with $FILTERED_ARTICLES relevant articles"
+        fi
+        
+    - name: 📄 Check generated reports
+      run: |
+        echo "## 📄 Generated Reports" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -d "output/daily_reports" ]; then
+          LATEST_REPORT=$(ls -t output/daily_reports/*.md 2>/dev/null | head -1)
+          if [ -n "$LATEST_REPORT" ]; then
+            REPORT_SIZE=$(du -h "$LATEST_REPORT" | cut -f1)
+            echo "- Latest report: $(basename "$LATEST_REPORT")" >> $GITHUB_STEP_SUMMARY
+            echo "- Report size: $REPORT_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "REPORT_GENERATED=true" >> $GITHUB_ENV
+            echo "LATEST_REPORT=$LATEST_REPORT" >> $GITHUB_ENV
+          else
+            echo "- No reports generated" >> $GITHUB_STEP_SUMMARY
+            echo "REPORT_GENERATED=false" >> $GITHUB_ENV
+          fi
+        fi
+        
+    - name: 💾 Update cache and commit changes
+      if: success() || failure()  # Always commit, even if tracker failed
+      run: |
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "Europa Tech Tracker Bot"
+        git config --local user.signingkey ""
+        git config --local commit.gpgsign false
+        
+        # Add generated files
+        git add data/ output/ logs/ || true
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+          echo "CHANGES_COMMITTED=false" >> $GITHUB_ENV
+        else
+          # Create detailed commit message
+          COMMIT_MSG="🤖 Daily Europa Tech Update - $(date '+%Y-%m-%d %H:%M')"
+          
+          if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
+            COMMIT_MSG="$COMMIT_MSG
+
+✅ Successful run:
+• Total articles processed: ${TOTAL_ARTICLES:-0}
+• European articles found: ${FILTERED_ARTICLES:-0}
+• Average relevance: ${AVG_RELEVANCE:-0}⭐
+• Report generated: ${REPORT_GENERATED:-false}"
+          else
+            COMMIT_MSG="$COMMIT_MSG
+
+❌ Run completed with errors:
+• Check logs for details
+• Cache and partial results committed"
+          fi
+          
+          # Add automation metadata
+          COMMIT_MSG="$COMMIT_MSG
+
+🤖 Automated by GitHub Actions
+Runtime: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          
+          # Commit changes
+          git commit -m "$COMMIT_MSG"
+          echo "CHANGES_COMMITTED=true" >> $GITHUB_ENV
+        fi
+        
+    - name: 🚀 Push changes
+      if: env.CHANGES_COMMITTED == 'true'
+      run: |
+        # Push with retry logic
+        for i in {1..3}; do
+          if git push origin main; then
+            echo "Successfully pushed changes on attempt $i"
+            echo "PUSH_SUCCESS=true" >> $GITHUB_ENV
+            break
+          else
+            echo "Push attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+            git pull --rebase origin main  # Handle potential conflicts
+          fi
+        done
+        
+        if [ "${PUSH_SUCCESS:-false}" != "true" ]; then
+          echo "Failed to push after 3 attempts"
+          echo "PUSH_SUCCESS=false" >> $GITHUB_ENV
+          exit 1
+        fi
+        
+    - name: 📊 Generate workflow summary  
+      if: always()  # Always generate summary
+      run: |
+        echo "# 🇪🇺 Europa Tech Tracker - Daily Run Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Date:** $(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Run status
+        if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
+          echo "## ✅ Successful Execution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total articles:** ${TOTAL_ARTICLES:-0}" >> $GITHUB_STEP_SUMMARY
+          echo "- **European articles:** ${FILTERED_ARTICLES:-0}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Average relevance:** ${AVG_RELEVANCE:-0}⭐" >> $GITHUB_STEP_SUMMARY
+          echo "- **Report generated:** ${REPORT_GENERATED:-false}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Changes committed:** ${CHANGES_COMMITTED:-false}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## ❌ Execution with Errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The tracker encountered errors. Check the logs for details." >> $GITHUB_STEP_SUMMARY
+          echo "Partial results and cache have been committed." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Latest report info
+        if [ "${REPORT_GENERATED:-false}" = "true" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📄 Latest Report" >> $GITHUB_STEP_SUMMARY
+          echo "**File:** \`$(basename "${LATEST_REPORT:-unknown}")\`" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Links
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Repository](https://github.com/N-Edens/europa-tech-tracker)" >> $GITHUB_STEP_SUMMARY
+        echo "- [Latest Reports](https://github.com/N-Edens/europa-tech-tracker/tree/main/output/daily_reports)" >> $GITHUB_STEP_SUMMARY
+        echo "- [Configuration](https://github.com/N-Edens/europa-tech-tracker/blob/main/config/sources.yaml)" >> $GITHUB_STEP_SUMMARY
+        
+    - name: 🔍 Upload logs as artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: tracker-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 30
+        
+    - name: ❌ Handle failures
+      if: failure()
+      run: |
+        echo "Workflow failed. Check the logs and artifacts for debugging information."
+        echo "Latest log file content:"
+        if [ -d "logs" ]; then
+          LATEST_LOG=$(ls -t logs/*.log 2>/dev/null | head -1)
+          if [ -n "$LATEST_LOG" ]; then
+            echo "--- $LATEST_LOG ---"
+            tail -50 "$LATEST_LOG"
+          fi
+        fi

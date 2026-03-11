@@ -1,0 +1,269 @@
+name: 🔧 Manual Europa Tech Run
+
+# Manual trigger for testing, debugging, and on-demand runs
+# Provides more control and debugging options
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Sources to scrape (comma-separated, or "all" for all)'
+        required: false
+        default: 'all'
+        type: string
+      max_articles:
+        description: 'Maximum articles per source'
+        required: false
+        default: '25'
+        type: string
+      include_disabled:
+        description: 'Include temporarily disabled sources'
+        required: false
+        default: false
+        type: boolean
+      debug_mode:
+        description: 'Enable verbose debug logging'
+        required: false
+        default: false
+        type: boolean
+      skip_cache:
+        description: 'Skip cache and fetch fresh articles'
+        required: false
+        default: false
+        type: boolean
+      test_mode:
+        description: 'Test mode (no commits, dry run)'
+        required: false
+        default: false
+        type: boolean
+      cleanup_cache:
+        description: 'Clean up old cache entries before run'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  manual_run:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 🐍 Setup Python environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        
+    - name: 📦 Install dependencies
+      run: |
+        pip install -r requirements.txt
+        echo "Dependencies installed successfully"
+        
+    - name: 🔧 Configure environment
+      run: |
+        echo "SOURCES=${{ github.event.inputs.sources }}" >> $GITHUB_ENV
+        echo "MAX_ARTICLES_PER_DAY=${{ github.event.inputs.max_articles }}" >> $GITHUB_ENV
+        echo "INCLUDE_DISABLED=${{ github.event.inputs.include_disabled }}" >> $GITHUB_ENV
+        echo "DEBUG_MODE=${{ github.event.inputs.debug_mode }}" >> $GITHUB_ENV
+        echo "SKIP_CACHE=${{ github.event.inputs.skip_cache }}" >> $GITHUB_ENV
+        echo "TEST_MODE=${{ github.event.inputs.test_mode }}" >> $GITHUB_ENV
+        echo "CLEANUP_CACHE=${{ github.event.inputs.cleanup_cache }}" >> $GITHUB_ENV
+        echo "GITHUB_ACTION=true" >> $GITHUB_ENV
+        
+        # Show configuration
+        echo "## 🔧 Run Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Sources:** ${{ github.event.inputs.sources }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Max articles:** ${{ github.event.inputs.max_articles }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Include disabled:** ${{ github.event.inputs.include_disabled }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Debug mode:** ${{ github.event.inputs.debug_mode }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Skip cache:** ${{ github.event.inputs.skip_cache }}" >> $GITHUB_ENV
+        echo "- **Test mode:** ${{ github.event.inputs.test_mode }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Cleanup cache:** ${{ github.event.inputs.cleanup_cache }}" >> $GITHUB_STEP_SUMMARY
+        
+    - name: 🧹 Cache cleanup (if requested)
+      if: github.event.inputs.cleanup_cache == 'true'
+      run: |
+        echo "Cleaning up old cache entries..."
+        if [ -f data/cache/article_cache.json ]; then
+          BEFORE_SIZE=$(du -h data/cache/article_cache.json | cut -f1)
+          echo "Cache size before cleanup: $BEFORE_SIZE"
+          
+          # Use Python to clean cache
+          python -c "
+from src.utils import CacheManager
+cache = CacheManager()
+removed = cache.cleanup_old_articles(max_age_days=7)
+print(f'Removed {removed} old articles from cache')
+"
+          
+          if [ -f data/cache/article_cache.json ]; then
+            AFTER_SIZE=$(du -h data/cache/article_cache.json | cut -f1)
+            echo "Cache size after cleanup: $AFTER_SIZE"
+          fi
+        else
+          echo "No cache file found to clean up"
+        fi
+        
+    - name: 📊 Pre-run analysis
+      run: |
+        echo "## 📊 Pre-Run Analysis" >> $GITHUB_STEP_SUMMARY
+        
+        # Check existing cache
+        if [ -f data/cache/article_cache.json ]; then
+          CACHE_STATS=$(python -c "
+from src.utils import CacheManager
+import json
+cache = CacheManager()
+stats = cache.get_cache_stats()
+print(f'Cached articles: {stats[\"total_articles\"]}')
+print(f'Cache size: {stats[\"cache_size_mb\"]} MB')
+print(f'Sources: {len(stats[\"source_breakdown\"])}')
+")
+          echo "$CACHE_STATS" | while read line; do
+            echo "- $line" >> $GITHUB_STEP_SUMMARY
+          done
+        else
+          echo "- No existing cache" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Check configuration
+        SOURCES_COUNT=$(python -c "
+import yaml
+with open('config/sources.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+enabled = sum(1 for s in config.get('sources', {}).values() if s.get('enabled', True))
+total = len(config.get('sources', {}))
+print(f'Enabled sources: {enabled}/{total}')
+")
+        echo "- $SOURCES_COUNT" >> $GITHUB_STEP_SUMMARY
+        
+    - name: 🇪🇺 Run Europa Tech Tracker
+      run: |
+        mkdir -p logs
+        
+        echo "Starting manual run of Europa Tech Tracker..."
+        
+        # Generate detailed log filename
+        LOG_FILE="logs/manual_run_$(date +%Y%m%d_%H%M%S).log"
+        
+        if [ "${{ github.event.inputs.debug_mode }}" = "true" ]; then
+          echo "Running in DEBUG mode..."
+          python -u src/main.py 2>&1 | tee "$LOG_FILE"
+        else
+          python src/main.py > "$LOG_FILE" 2>&1
+        fi
+        
+        EXIT_CODE=$?
+        echo "TRACKER_EXIT_CODE=$EXIT_CODE" >> $GITHUB_ENV
+        echo "LOG_FILE=$LOG_FILE" >> $GITHUB_ENV
+        
+        # Show last few lines of log
+        echo "## 📝 Execution Log (last 20 lines)" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        tail -20 "$LOG_FILE" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✅ Tracker completed successfully"
+        else
+          echo "❌ Tracker completed with errors (exit code: $EXIT_CODE)"
+        fi
+        
+    - name: 🔍 Analyze results
+      run: |
+        echo "## 📈 Results Analysis" >> $GITHUB_STEP_SUMMARY
+        
+        # Parse log for key metrics
+        if [ -f "$LOG_FILE" ]; then
+          TOTAL_ARTICLES=$(grep -o "Processing [0-9]\+ total articles" "$LOG_FILE" | grep -o "[0-9]\+" | head -1 || echo "0")
+          FILTERED_ARTICLES=$(grep -o "[0-9]\+ articles match European criteria" "$LOG_FILE" | grep -o "^[0-9]\+" || echo "0")
+          AVG_RELEVANCE=$(grep -o "Average relevance: [0-9.]\+" "$LOG_FILE" | grep -o "[0-9.]\+" | head -1 || echo "0")
+          
+          echo "- **Total articles processed:** $TOTAL_ARTICLES" >> $GITHUB_STEP_SUMMARY
+          echo "- **European articles found:** $FILTERED_ARTICLES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Average relevance score:** ${AVG_RELEVANCE}⭐" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculate success rate
+          if [ "$TOTAL_ARTICLES" -gt 0 ]; then
+            SUCCESS_RATE=$(python -c "print(f'{($FILTERED_ARTICLES / $TOTAL_ARTICLES) * 100:.1f}')")
+            echo "- **Success rate:** ${SUCCESS_RATE}%" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "TOTAL_ARTICLES=$TOTAL_ARTICLES" >> $GITHUB_ENV
+          echo "FILTERED_ARTICLES=$FILTERED_ARTICLES" >> $GITHUB_ENV
+        fi
+        
+        # Check generated files
+        if [ -d "output/daily_reports" ]; then
+          LATEST_REPORT=$(ls -t output/daily_reports/*.md 2>/dev/null | head -1)
+          if [ -n "$LATEST_REPORT" ]; then
+            REPORT_SIZE=$(du -h "$LATEST_REPORT" | cut -f1)
+            echo "- **Report generated:** $(basename "$LATEST_REPORT") ($REPORT_SIZE)" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+    - name: 💾 Commit results (if not test mode)
+      if: github.event.inputs.test_mode != 'true' && (success() || failure())
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "Europa Tech Manual Run Bot"
+        
+        git add data/ output/ logs/ || true
+        
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+          echo "## 💾 No Changes" >> $GITHUB_STEP_SUMMARY
+          echo "No new data was generated during this run." >> $GITHUB_STEP_SUMMARY
+        else
+          COMMIT_MSG="🔧 Manual Europa Tech Run - $(date '+%Y-%m-%d %H:%M')"
+          
+          if [ "${TRACKER_EXIT_CODE:-1}" = "0" ]; then
+            COMMIT_MSG="$COMMIT_MSG
+
+✅ Manual run successful:
+• Articles processed: ${TOTAL_ARTICLES:-0}
+• European articles: ${FILTERED_ARTICLES:-0}
+• Triggered by: ${{ github.actor }}
+• Configuration: ${{ github.event.inputs.sources }}
+
+🔧 Manual trigger parameters:
+• Max articles: ${{ github.event.inputs.max_articles }}
+• Debug mode: ${{ github.event.inputs.debug_mode }}
+• Skip cache: ${{ github.event.inputs.skip_cache }}"
+          else
+            COMMIT_MSG="$COMMIT_MSG
+
+❌ Manual run with errors:
+• Partial results committed
+• Check logs for troubleshooting
+• Triggered by: ${{ github.actor }}"
+          fi
+          
+          git commit -m "$COMMIT_MSG"
+          git push origin main
+          
+          echo "## ✅ Changes Committed" >> $GITHUB_STEP_SUMMARY
+          echo "Results have been committed and pushed to the repository." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: 🧪 Test mode summary
+      if: github.event.inputs.test_mode == 'true'
+      run: |
+        echo "## 🧪 Test Mode - No Changes Committed" >> $GITHUB_STEP_SUMMARY
+        echo "This was a test run. No changes were committed to the repository." >> $GITHUB_STEP_SUMMARY
+        echo "Review the results above and run again without test mode to commit changes." >> $GITHUB_STEP_SUMMARY
+        
+    - name: 📎 Upload artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: manual-run-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7
