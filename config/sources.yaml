@@ -16,11 +16,52 @@ sources:
     type: "rss"
     priority: "high"
     description: "European business and tech news by Financial Times"
+    enabled: false  # Temporarily disabled due to 403 error
+    
+  the_next_web:
+    name: "The Next Web"
+    url: "https://thenextweb.com/feed/"
+    type: "rss"
+    priority: "medium"
+    description: "Global tech news with European focus filter"
+    enabled: true
+    keywords_bonus: ["europe", "european", "eu"]
+    
+  ovhcloud_blog:
+    name: "OVHcloud Blog"
+    url: "https://blog.ovhcloud.com/feed/"
+    type: "rss"
+    priority: "medium"
+    description: "European cloud provider insights and updates"
+    enabled: true
+    
+  sap_news:
+    name: "SAP News"
+    url: "https://news.sap.com/feed/"
+    type: "rss"
+    priority: "medium"
+    description: "Enterprise software news from European tech giant"
+    enabled: true
+    
+  techcrunch_europe:
+    name: "TechCrunch Europe"
+    url: "https://techcrunch.com/category/europe/feed/"
+    type: "rss"
+    priority: "medium"
+    description: "TechCrunch European startup coverage"
+    enabled: true
+    
+  european_startup_news:
+    name: "EU-Startups"
+    url: "https://www.eu-startups.com/feed/"
+    type: "rss"
+    priority: "high"
+    description: "Dedicated European startup news platform"
     enabled: true
 
 # Keyword filtering for European relevance
 keywords:
-  # European tech companies and regions
+  # European tech companies and regions (enhanced)
   european_companies:
     - "European startup"
     - "European tech"
@@ -29,16 +70,69 @@ keywords:
     - "European cloud"
     - "European AI"
     - "European software"
+    - "Nordic tech"
+    - "German startup"
+    - "French tech"
+    - "UK fintech" 
+    - "Dutch innovation"
+    - "European unicorn"
+    - "European scaleup"
     
-  # Privacy and GDPR
+  # Cloud & Infrastructure (new category)
+  cloud_infrastructure:
+    - "OVHcloud"
+    - "Scaleway"
+    - "Hetzner"
+    - "IONOS"
+    - "European cloud"
+    - "GDPR compliant hosting"
+    - "European data center"
+    - "Data sovereignty"
+    - "European hosting"
+    - "European CDN"
+    
+  # Privacy and GDPR (enhanced)
   privacy_tech:
     - "GDPR"
     - "Data protection"
     - "Privacy by design"
     - "European privacy"
     - "Data sovereignty"
+    - "End-to-end encryption"
+    - "Zero knowledge"
+    - "Cookie consent"
+    - "Privacy-first"
+    - "Digital rights"
     
-  # Specific European companies
+  # European Startups & VC (new category) 
+  startups_funding:
+    - "European VC"
+    - "European funding"
+    - "Series A Europe"
+    - "European investment"
+    - "Nordic funding"
+    - "French tech ecosystem"
+    - "German VC"
+    - "European accelerator"
+    - "EIC Accelerator"
+    - "Horizon Europe"
+    - "European Innovation Council"
+    
+  # Open Source & Alternatives (enhanced)
+  opensource_alternatives:
+    - "Open source alternative"
+    - "European open source"
+    - "FOSS"
+    - "LibreOffice"
+    - "Nextcloud"
+    - "Matrix protocol"
+    - "GitLab"
+    - "European Linux"
+    - "Open source cloud"
+    - "European developer tools"
+    - "Decentralized"
+    
+  # Specific European companies (expanded)
   companies:
     - "OVHcloud"
     - "Scaleway" 
@@ -49,15 +143,33 @@ keywords:
     - "Wise"
     - "Deliveroo"
     - "Criteo"
+    - "ASML"
+    - "Nokia"
+    - "Ericsson"
+    - "Adyen"
+    - "TeamViewer"
+    - "Shopify Plus"
+    - "Zalando"
+    - "HelloFresh"
+    - "N26"
+    - "Monzo"
+    - "Starling Bank"
+    - "Transferwise"
     
-  # EU policy and regulation
+  # EU policy and regulation (enhanced)
   policy:
     - "Digital Markets Act"
     - "Digital Services Act" 
     - "AI Act"
     - "European regulation"
     - "EU policy"
-    - "European commission"
+    - "European Commission"
+    - "European Parliament"
+    - "Digital Single Market"
+    - "European Chips Act"
+    - "Digital Compass"
+    - "European Green Deal"
+    - "GDPR enforcement"
     
 # Anti-US filter keywords (Phase 4 feature)
 exclude_keywords:

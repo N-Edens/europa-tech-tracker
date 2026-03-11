@@ -224,7 +224,7 @@ Today's European tech news highlights:
         for cat_keywords in matched_keywords.values():
             for kw_info in cat_keywords:
                 all_keywords.append(kw_info['keyword'])
-        keywords_str = ', '.join(f"`{kw}`" for kw in set(all_keywords)[:5])
+        keywords_str = ', '.join(f"`{kw}`" for kw in sorted(set(all_keywords))[:5])
         
         article_md = f"""#### {index}. [{title}]({url})
 
