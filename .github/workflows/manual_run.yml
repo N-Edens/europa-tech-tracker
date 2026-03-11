@@ -66,7 +66,16 @@ jobs:
         pip install -r requirements.txt
         echo "Dependencies installed successfully"
         
-    - name: 🔧 Configure environment
+    - name: � Setup Google credentials
+      if: env.GOOGLE_CREDENTIALS != ''
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      run: |
+        mkdir -p config
+        echo "$GOOGLE_CREDENTIALS" > config/google_credentials.json
+        echo "Google credentials configured"
+
+    - name: �🔧 Configure environment
       run: |
         echo "SOURCES=${{ github.event.inputs.sources }}" >> $GITHUB_ENV
         echo "MAX_ARTICLES_PER_DAY=${{ github.event.inputs.max_articles }}" >> $GITHUB_ENV

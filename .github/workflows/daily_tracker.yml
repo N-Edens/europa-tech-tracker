@@ -53,7 +53,16 @@ jobs:
         pip install -r requirements.txt
         pip install --upgrade pip
         
-    - name: 🔧 Setup environment variables
+    - name: � Setup Google credentials
+      if: env.GOOGLE_CREDENTIALS != ''
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      run: |
+        mkdir -p config
+        echo "$GOOGLE_CREDENTIALS" > config/google_credentials.json
+        echo "Google credentials configured"
+
+    - name: �🔧 Setup environment variables
       run: |
         echo "MAX_ARTICLES_PER_DAY=${{ github.event.inputs.max_articles || '50' }}" >> $GITHUB_ENV
         echo "SKIP_CACHE=${{ github.event.inputs.skip_cache || 'false' }}" >> $GITHUB_ENV
